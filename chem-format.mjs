@@ -2,7 +2,7 @@
 // repair a PDF glyph. Formula counts, charge, and leading coefficients differ.
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const atoms = 'H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og D T'.split(' ');
-const groups = 'TBDMS TBDPS TIPS TMS TES TBS Fmoc Alloc Teoc Cbz Boc BOC OAc OMe OEt OBn OPh OTs OMs OTf NMe NEt NPr NBu Me Et Pr Bu Ph Bn Bz Ac Ms Ts Tf Tr Ar R'.split(' ');
+const groups = 'TBDMS TBDPS TIPS TMS TES TBS Fmoc Alloc Teoc Cbz Boc BOC OAc OMe OEt OBn OPh OTs OMs OTf NMe NEt NPr NBu Me Et Pr Bu Ph Bn Bz Ac Ms Ts Tf Tr Ar R X Cy Cp Sia Thex TFA acac hfac tfac bipy bpy phen dba cod dppe dppp dppb dppf cym'.split(' ');
 const units = [...new Set([...atoms, ...groups])].sort((a,b)=>b.length-a.length);
 const monatomicCations = new Set('Li Na K Rb Cs Mg Ca Sr Ba Al Sc Ti V Cr Mn Fe Co Ni Cu Zn Zr Ag Cd Sn La Ce Hg Pb Bi'.split(' '));
 
@@ -12,11 +12,15 @@ function bodyHTML(body) {
   let out='', seen=false;
   while(i<body.length && (!close || body[i]!==close)) {
    const ch=body[i];
+   const organicPrefix=body.slice(i).match(/^(i|n|s|t|sec|tert|o|m|p)-/);
+   if(organicPrefix){out+=`<i>${organicPrefix[1]}</i>-`;i+=organicPrefix[0].length;continue;}
+   if(ch==='-' && seen && i+1<body.length){out+='-';i++;continue;}
+   let grouped=false;
    if(ch==='(' || ch==='[') {
     const end=ch==='('?')':']'; i++;
     const inside=sequence(end);
     if(!inside || body[i]!==end) return null;
-    i++; out+=ch+inside+end; seen=true;
+    i++; out+=ch+inside+end; seen=true; grouped=true;
    } else {
     const unit=units.find(u=>body.startsWith(u,i));
     if(!unit) return null;
@@ -24,6 +28,7 @@ function bodyHTML(body) {
    }
    const digits=body.slice(i).match(/^\d+/)?.[0];
    if(digits){out+=`<sub>${digits}</sub>`;i+=digits.length;}
+   else if(grouped && /^[nmx](?![a-z])/.test(body.slice(i))){out+=`<sub><i>${body[i++]}</i></sub>`;}
    if(/^[=≡#]$/.test(body[i]||'')){out+=escapeHTML(body[i++]);if(i===body.length)return null;}
   }
   return seen?out:null;
