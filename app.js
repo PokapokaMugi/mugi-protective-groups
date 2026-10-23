@@ -1,7 +1,7 @@
 (async function boot(){
 
 'use strict';
-const {renderConditions,conditionColumns}=await import('./reaction-conditions.mjs?v=20261023a');
+const {renderConditions,conditionColumns}=await import('./reaction-conditions.mjs?v=20261023b');
 const localBook=await import('./local-book.mjs');
 const dataResponse=await fetch('./data.json');if(!dataResponse.ok)throw new Error('検索データを読み込めませんでした');
 const D=await dataResponse.json();D.pages=Array.from({length:D.pageCount},(_,i)=>({pdf:i+1,printed:i>=27?i-26:null,text:''}));
