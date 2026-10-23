@@ -1,0 +1,24 @@
+// PDF bytes stay in the visitor's browser; only app assets are downloaded.
+let documentPromise=null,currentFile=null,objectUrl=null,generation=0;
+const lineCache=new Map();
+export function hasPDF(){return !!currentFile}
+export function fileName(){return currentFile?.name||''}
+export function originalUrl(){if(!currentFile)throw new Error('手元のPDFを読み込んでください');if(!objectUrl)objectUrl=URL.createObjectURL(currentFile);return objectUrl}
+async function engine(){if(!Promise.withResolvers)Promise.withResolvers=function(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject}};const pdfjs=await import('./assets/pdf.min.mjs');pdfjs.GlobalWorkerOptions.workerSrc=new URL('./assets/pdf.worker.min.mjs',import.meta.url).href;return pdfjs}
+async function database(){if(!globalThis.indexedDB)throw new Error('端末への保存には対応していません');return new Promise((resolve,reject)=>{const r=indexedDB.open('protective-groups-local-book',1);r.onupgradeneeded=()=>r.result.createObjectStore('books');r.onerror=()=>reject(r.error);r.onsuccess=()=>resolve(r.result)})}
+async function savedFile(operation,value){const db=await database();try{return await new Promise((resolve,reject)=>{const tx=db.transaction('books',operation==='get'?'readonly':'readwrite'),s=tx.objectStore('books');const r=operation==='get'?s.get('greene4'):operation==='put'?s.put(value,'greene4'):s.delete('greene4');let result;r.onsuccess=()=>{result=r.result};tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)})}finally{db.close()}}
+export async function load(file,{remember=false}={}){
+ if(!file||!file.size)throw new Error('PDFファイルを選択してください');
+ const pdfjs=await engine(),candidate=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,useSystemFonts:true}).promise;
+ try{if(candidate.numPages!==1108)throw new Error('この索引はGreene第4版・1,108ページのPDFに対応しています。版とページ数を確認してください。');const page=await candidate.getPage(57),content=await page.getTextContent(),text=content.items.map(i=>i.str||'').join('');if(!/methoxymethyl/i.test(text))throw new Error('原書ページと索引の対応を確認できませんでした。Greene第4版の対応PDFを選択してください。')}catch(error){await candidate.destroy();throw error}
+ const previous=documentPromise;documentPromise=Promise.resolve(candidate);currentFile=file;generation++;lineCache.clear();if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=null;if(previous)previous.then(p=>p.destroy()).catch(()=>{});
+ let saved=false;if(remember){try{await savedFile('put',file);saved=true}catch{}}else{try{await savedFile('delete')}catch{}}
+ return{pages:candidate.numPages,saved};
+}
+export async function restore(){try{const file=await savedFile('get');if(!file)return false;await load(file,{remember:true});return true}catch{return false}}
+export async function forget(){const previous=documentPromise;documentPromise=null;currentFile=null;generation++;lineCache.clear();if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=null;try{await savedFile('delete')}catch{}if(previous)previous.then(p=>p.destroy()).catch(()=>{})}
+export async function getDocument(){if(!documentPromise)throw new Error('手元のPDFを読み込んでください');return documentPromise}
+export function cleanText(s){return String(s).replace(/(?<![A-Za-z0-9)])(\d+(?:\.\d+)?)[\x00-\x1f](?=C\b)/g,'$1°').replace(/(?<![A-Za-z0-9])[\x00-\x1f](?=\d+(?:\.\d+)?°C)/g,'−').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'□')}
+export async function pageLines(n){if(!lineCache.has(n)){const version=generation;lineCache.set(n,(async()=>{const pdf=await getDocument(),page=await pdf.getPage(n),height=page.getViewport({scale:1}).height,content=await page.getTextContent();const lines=[];for(const it of content.items){if(!it.str?.trim())continue;const y=height-it.transform[5],x=it.transform[4];let l=lines.find(l=>Math.abs(l.y-y)<3.8);if(!l){l={y,items:[]};lines.push(l)}l.items.push({text:it.str,x,width:it.width})}const result=lines.sort((a,b)=>a.y-b.y).map(l=>{let text='',end=null;for(const it of l.items.sort((a,b)=>a.x-b.x)){text+=(end!==null&&it.x-end>1.7?' ':'')+it.text;end=it.x+it.width}return{y:Math.round(l.y*100)/100,text}});if(version!==generation)throw new Error('PDFが切り替わりました。再試行してください');return result})().catch(e=>{lineCache.delete(n);throw e}))}return lineCache.get(n)}
+export async function methodText(m){let text=[];for(const loc of m.readLines||[]){const lines=await pageLines(loc.page+27),line=lines.find(l=>Math.abs(l.y-loc.y)<.8);if(line)text.push(cleanText(line.text))}let s=text.join(' ').replace(/(?<=[a-z])- (?=[a-z])/g,'');if(m.number!==null)s=s.replace(new RegExp('^'+m.number+'\\.\\s*'),'');return s}
+export async function allPages(progress=()=>{}){const pdf=await getDocument(),pages=[];for(let i=1;i<=pdf.numPages;i++){const lines=await pageLines(i);pages.push({pdf:i,printed:i>=28?i-27:null,text:lines.map(l=>l.text).join('\n')});if(i%25===0||i===pdf.numPages)progress(i,pdf.numPages)}return pages}
