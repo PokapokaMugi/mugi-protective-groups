@@ -17,7 +17,7 @@ const solventRE = /^(?:(?:aq\.?|aqueous|dry|anhydrous|abs\.?|absolute|wet|boilin
 const wordsRE = /\b(?:is|are|was|were|has|have|can|could|will|would|should|gives?|gave|affords?|afforded|used|using|reacts?|reacted|allows?|increases?|decreases?|results?|shows?|shown|reported|found|cleaves?|cleaved|removes?|removed|protects?|silylates?|formed|formation|preparation|converted|mixing|treat|treatment|stable|stability|inert|resistant|resists?|withstands?|tolerates?|unaffected|unsuccessful|decomposes?|decomposition)\b/i;
 
 export function firstStatement(text) {
- const s = tidy(text);
+ const s = tidy(text).replace(/\byields? (?=(?:This|These|The|An?|It)\s)/g, m=>m.trim()+'. ');
  let depth = 0;
  for (let i = 0; i < s.length; i++) {
   if ('(['.includes(s[i])) depth++;
@@ -64,7 +64,7 @@ function parseStep(text) {
   }
   else if (rest.includes(' or ') && rest.split(' or ').some(solventPart)) unassigned.push(part);
   else if (/^\(?\d+\s*:\s*\d+/.test(rest) && solvents.length) solvents[solvents.length-1] += ' ('+rest.replace(/^\(|\)$/g,'')+')';
-  else if (/\bfor\s+|^(?:respectively|or|and|with|in|from)\b/i.test(rest) || /^\d+(?:[–−-]\d+)?%/.test(rest)) unassigned.push(part);
+  else if (/\bfor\s+|^(?:respectively|or|and|with|in|from)\b/i.test(rest) || /^\d+(?:[–−-]\d+)?%\s*(?:or|and)?$/.test(rest)) unassigned.push(part);
   else if (!wordsRE.test(rest) && rest.split(' ').length <= 12 && !/^\d+\s*%$/.test(rest)) reagents.push(rest);
   else unassigned.push(part);
  }
