@@ -69,7 +69,7 @@ function parseStep(text) {
   else unassigned.push(part);
  }
  else unassigned.push(s);
- return {reagents:join(reagents),solvent:join(solvents),temperature:narrative?'':join(temperatures.map(temperature)),time:narrative?'':join(times.map(time)),yield:narrative?'':join(yields.map(x=>x.replace(/\s*yield(?:s)?$/i,''))),other:narrative?'':join(other),unassigned,narrative,original:s,context};
+ return {reagents:unique(reagents).join(', '),solvent:join(solvents),temperature:narrative?'':join(temperatures.map(temperature)),time:narrative?'':join(times.map(time)),yield:narrative?'':join(yields.map(x=>x.replace(/\s*yield(?:s)?$/i,''))),other:narrative?'':join(other),unassigned,narrative,original:s,context};
 }
 
 // Explicit readings for narrative passages. These are factual summaries of the

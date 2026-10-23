@@ -2,3 +2,5 @@
 @media(max-width:600px){.reaction-main{grid-template-columns:1fr}.reaction-main .reaction-field+.reaction-field{border-left:0;border-top:1px solid #dce4d7}.reaction-field{padding:11px 12px}.reaction-field dd{font-size:15px}.reaction-field.reagent-field dd{font-size:16px}.reaction-metrics{grid-template-columns:1fr 1fr}.reaction-metrics .reaction-field:last-child{grid-column:1/-1;border-left:0;border-top:1px solid #dce4d7}.source-method .method-row{display:block}.source-method .method-number{display:inline-block;margin-bottom:9px}.reaction-caption{font-size:12px}}
 
 .reaction-original{font-size:14px;line-height:1.75;margin:12px 2px 0;overflow-wrap:anywhere;color:#465747}
+
+.chem-formula{font-style:normal;white-space:nowrap}.chem-formula sub,.chem-formula sup{font-size:.72em;line-height:0;position:relative;vertical-align:baseline}.chem-formula sub{bottom:-.22em}.chem-formula sup{top:-.48em}.chem-formula i{font-style:italic}
