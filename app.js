@@ -109,9 +109,11 @@ function originalPdfUrl(){return localBook.originalUrl()}
 async function getPDF(){return localBook.getDocument()}
 function openPage(n,focusY=0){state.focusY=Math.min(.95,Math.max(0,Number(focusY)||0));state.page=Math.max(1,Math.min(D.pages.length,Math.trunc(Number(n))||1));state.sourcePDF=true;state.rotation=0;if(!$('#source').open)$('#source').showModal();renderPage()}
 async function renderPage(){
- const token=++pdfRenderToken,pageNumber=state.page;if(!localBook.hasPDF()){$('#sourcetitle').textContent=srcLabel(pageNumber);$('#sourceNotice').textContent='原書画像は手元のPDFから表示します';$('#sourceContent').innerHTML=localBookPanel();return}currentPdfCanvas=null;
+ const token=++pdfRenderToken,pageNumber=state.page;currentPdfCanvas=null;
  if(pdfRenderTask){pdfRenderTask.cancel();pdfRenderTask=null}
  $('#sourcetitle').textContent=srcLabel(pageNumber);$('#pageInput').value=pageNumber;$('#prevPage').disabled=pageNumber<=1;$('#nextPage').disabled=pageNumber>=D.pages.length;$('#sourceMode').textContent=state.sourcePDF?'抽出テキストを見る':'原書画像に戻る';$('#savePageImage').disabled=true;$('#pdfZoom').disabled=$('#rotatePage').disabled=!state.sourcePDF;
+ const ready=localBook.hasPDF();$('#sourceMode').disabled=$('#downloadPdf').disabled=!ready;$('#pdfZoom').disabled=$('#rotatePage').disabled=!ready||!state.sourcePDF;
+ if(!ready){$('#sourceNotice').textContent=`${srcLabel(pageNumber)}を表示するには、下から原書PDFを選択してください。`;$('#sourceContent').innerHTML=localBookPanel(true);return}
  if(!state.sourcePDF){try{await ensurePages()}catch(error){$('#sourceNotice').textContent='本文の読み込みに失敗しました。原書画像に戻って確認できます。';return}if(token!==pdfRenderToken)return;$('#sourceNotice').textContent='検索用の抽出テキスト。構造式・レイアウトの確認は「原書画像に戻る」から。';$('#sourceContent').innerHTML=`<pre class="rawtext">${highlight(D.pages[pageNumber-1].text||'このページは空白です。',state.query)}</pre>`;return}
  $('#sourceNotice').textContent='元PDFからページ画像を読み込んでいます…';$('#sourceContent').innerHTML='<div class="pdf-loading" role="status">原書ページを表示中…</div>';
  try{
@@ -131,13 +133,31 @@ function savePageImage(){if(!currentPdfCanvas)return;const name='Greene4-PDF-'+s
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 
 
-function localBookPanel(){return `<section class="book-required"><h3>手元のPDFを読み込んで、全掲載例を確認</h3><p>Greene第4版（1,108ページ）のPDFを選択すると、導入・脱保護の各条件と原書画像、全文検索が使えます。ファイルはこのブラウザー内で処理し、サーバーへ送信しません。</p><button data-load-book>手元のPDFを読み込む</button></section>`}
-function pickLocalBook(){$('#localPdfInput').click()}
-function updateBookStatus(message){$('#bookStatus').textContent=message||(localBook.hasPDF()?`${localBook.fileName()} · 1,108ページ読み込み済み`:'一般情報・pH耐性・文献はそのまま検索できます。原書画像・掲載条件は手元のPDFを選択してください。');$('#pdfPick').textContent=localBook.hasPDF()?'PDFを変更':'手元のPDFを読み込む';$('#forgetBook').hidden=!localBook.hasPDF()}
+function localBookPanel(forImage=false){return `<section class="book-required"><h3>${forImage?'このページを原書画像で表示':'原書PDFを読み込んで、全掲載例を確認'}</h3><p>初回だけ、Greene第4版（1,108ページ）のPDFを選択してください。${forImage?'選択後、開こうとしたページをそのまま表示します。':'導入・脱保護条件と原書画像、全文検索が使えます。'}</p><label class="local-pdf-label">原書PDFを選択<input type="file" data-local-pdf accept="application/pdf,.pdf" aria-label="原書PDFを選択"></label><label class="book-remember"><input type="checkbox" data-book-remember ${$('#rememberBook').checked?'checked':''}> このブラウザーに保存して、次回から自動で読み込む</label><p class="book-local-note">PDFはこの端末内で処理します。サーバーへ送信・公開されません。別のブラウザーや端末では再選択が必要です。</p><p class="book-load-status" data-book-status role="status">${esc($('#bookStatus').textContent)}</p></section>`}
+function pickLocalBook(){const dialog=$('#bookSetup');if(!dialog.open)dialog.showModal()}
+function updateBookStatus(message){const status=message||(localBook.hasPDF()?`${localBook.fileName()} · 1,108ページ読み込み済み`:'初回だけGreene第4版のPDFを選択してください。以後、このブラウザーでは各「原書画像」リンクから該当ページを開けます。');$('#bookStatus').textContent=status;document.querySelectorAll('[data-book-status]').forEach(el=>{el.textContent=status});$('#pdfPick').textContent=localBook.hasPDF()?'原書PDFを変更':'原書PDFを設定';$('#forgetBook').hidden=!localBook.hasPDF();$('#openBookImage').hidden=!localBook.hasPDF()}
 async function enrichMethods(ids){if(!localBook.hasPDF())return;const todo=ids.map(id=>bookMethodById[id]).filter(m=>m&&!m.loaded);let i=0;await Promise.all(Array.from({length:Math.min(6,todo.length)},async()=>{while(i<todo.length){const m=todo[i++];m.text=await localBook.methodText(m);m.title=m.text||'この方法の条件・構造式は原書画像で確認してください。';m.loaded=true}}))}
 function resetBookText(){pagesPromise=null;D.pages=Array.from({length:D.pageCount},(_,i)=>({pdf:i+1,printed:i>=27?i-26:null,text:''}));for(const m of bookMethods){m.text='';m.title='手元のPDFを読み込むと条件を表示します';m.loaded=false}pdfRenderToken++;if(pdfRenderTask){pdfRenderTask.cancel();pdfRenderTask=null}currentPdfCanvas=null}
-async function redrawBook(){render();if($('#detail').open&&state.openEntryId)await openEntry(state.openEntryId);if($('#source').open)await renderPage()}
-$('#localPdfInput').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;$('#pdfPick').disabled=true;updateBookStatus('PDFを確認しています…');try{const result=await localBook.load(file,{remember:$('#rememberBook').checked});resetBookText();updateBookStatus(result.saved?`${file.name} · このブラウザーに保存しました`:`${file.name} · 読み込み済み（このタブで使用）`);await redrawBook()}catch(error){updateBookStatus(error.message)}finally{$('#pdfPick').disabled=false;event.target.value=''}});
+async function redrawBook(){render();if($('#source').open)await renderPage();if($('#detail').open&&state.openEntryId)await openEntry(state.openEntryId)}
+let loadingBook=false;
+document.addEventListener('change',async event=>{
+ const input=event.target;
+ if(input.matches('[data-book-remember]')){$('#rememberBook').checked=input.checked;document.querySelectorAll('[data-book-remember]').forEach(el=>{el.checked=input.checked});return}
+ if(input.id==='rememberBook'){document.querySelectorAll('[data-book-remember]').forEach(el=>{el.checked=input.checked});return}
+ if(!input.matches('[data-local-pdf]'))return;
+ const file=input.files[0];if(!file||loadingBook)return;loadingBook=true;
+ document.querySelectorAll('[data-local-pdf], [data-load-book], #pdfPick, #forgetBook').forEach(el=>{el.disabled=true});
+ updateBookStatus('PDFを確認しています。このままお待ちください…');
+ try{
+  const remember=$('#rememberBook').checked,result=await localBook.load(file,{remember});resetBookText();
+  updateBookStatus(result.saved?`${file.name} · このブラウザーに保存しました。次回から自動で読み込みます。`:remember?`${file.name} · 読み込み済み。端末に保存できなかったため、次回はPDFを再選択してください。`:`${file.name} · 読み込み済み（このタブで使用）`);
+  if($('#bookSetup').open)$('#bookSetup').close();
+  await redrawBook();
+  if(!$('#source').open)openPage(state.page||57);
+ }catch(error){updateBookStatus(error.message||'PDFを読み込めませんでした。もう一度選択してください。')}
+ finally{loadingBook=false;document.querySelectorAll('[data-local-pdf], [data-load-book], #pdfPick, #forgetBook').forEach(el=>{el.disabled=false});input.value=''}
+});
+$('#openBookImage').onclick=()=>openPage(state.page||57);
 $('#forgetBook').onclick=async()=>{await localBook.forget();resetBookText();updateBookStatus();await redrawBook()};
 async function restoreBook(){if(await localBook.restore()){resetBookText();updateBookStatus();await redrawBook()}}
 
